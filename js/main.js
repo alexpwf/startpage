@@ -1,20 +1,21 @@
-VERSION = "v1.3.0";
+VERSION = "v1.6.0";
 
 
-function version(msg){
+function version(){
+    var msg;
     var responseobj;
     var request = new XMLHttpRequest();
 
     request.onload = function(){
         responseobj = JSON.parse(this.responseText);
         if(responseobj.tag_name != VERSION && this.status == 200){
-            msg = "<u><a href='https://github.com/fuyuneko/" +
-                        "startpage/releases'>" + responseobj.tag_name +
-                        " is available!</a></u><br>" + msg;
+            msg = responseobj.tag_name;
         }
     };
 
-    request.open("get", "http://api.github.com/repos/fuyuneko/startpage/releases/latest", false);
+    request.open("get",
+            "http://api.github.com/repos/fuyuneko/startpage/releases/latest",
+            false);
     request.send();
 
     return msg;
@@ -28,18 +29,14 @@ function fixJitter(container){
 
 
 function popup(obj, msg){
-    if(cfg_bool[3]){
-        msg = version(msg);
-    }
-
     var popuphandler = function(){
         popup(this, msg);
-    }
+    };
     // add event listener when it's going to be visible
     if(!visibility){
         obj.addEventListener("click", popuphandler);
         obj.innerHTML = msg;
-        obj.style.bottom = "-" + cfg[9];
+        obj.style.bottom = "-" + data.style.border_width_normal;
     }else{
         obj.removeEventListener("click", popuphandler);
         obj.style.bottom = "-200px";
@@ -55,17 +52,15 @@ function expand(){
     }else{
         this.style.height = "337px";
     }
-    if(cfg_bool[0]){
-        this.style.borderTop = cfg[9] + " solid " + cfg[8];
-        this.style.borderBottom = cfg[9] + " solid " + cfg[8];
+    if(data.bool.borders){
+        this.style.borderWidth = data.style.border_width_hovered;
     }
 }
 
 
 function contract(){
     this.style.height = "150px";
-    this.style.borderTop = "0 solid" + cfg[8];
-    this.style.borderBottom = "0 solid" + cfg[8];
+    this.style.borderWidth = data.style.border_width_normal;
 }
 
 
@@ -79,51 +74,38 @@ String.prototype.replaceChars = function(character, replacement){
             a = str.substr(0, i) + replacement;
             b = str.substr(i + 1);
             str = a + b;
-            if(replacement == ""){
+            if(replacement === ""){
                 i--;
             }
         }
     }
     return str;
-}
+};
 
-
-function searchCase(url, query, replacement){
-    query = query.substr(3);
-    window.location = url + query.replaceChars(" ", replacement);
-}
 
 function search(query){
-    switch(query.substr(0, 2)){
-        case "-h":
+    if(typeof searchsquare == 'undefined'){
+        configmenuInit(undefined);
+    }else if(query[0] == searchsquare.prefix){
+        if(query.substr(1) == "help"){
             popup(popupDiv, HelpText);
-            break;
-        case "-c":
+        }else if(query.substr(1) == "config"){
             configmenuInit(undefined);
-            break;
-        case "-g":
-            searchCase("https://www.google.com/#q=", query, "+");
-            break;
-        case "-w":
-            searchCase("https://en.wikipedia.org/w/index.php?search=", query, "+");
-            break;
-        case "-a":
-            searchCase("https://wiki.archlinux.org/index.php?search=", query, "+");
-            break;
-        case "-d":
-            searchCase("http://danbooru.donmai.us/posts?tags=", query, "+");
-            break;
-        case "-y":
-            searchCase("https://www.youtube.com/results?search_query=", query, "+");
-            break;
-        case "-n":
-            searchCase("http://www.nicovideo.jp/search/", query, "%20");
-            break;
-        case "-p":
-            searchCase("http://www.pixiv.net/search.php?s_mode=s_tag&word=", query, "%20");
-            break;
-        default:
-            window.location = "https://www.google.com/#q=" + query.replaceChars(" ", "+");
+        }else{
+            for(var i=0; i < searchsquare.links.length; i++){
+                if(query[1] == searchsquare.links[i].opt){
+                    query = query.substr(3);
+                    window.location = searchsquare.links[i].url +
+                            query.replaceChars(" ", searchsquare.links[i].space);
+                    break;
+                }
+            }
+        }
+    }else if(query === ""){
+        popup(popupDiv, HelpText);
+    }else{
+        window.location = searchsquare.links[0].url +
+                query.replaceChars(" ", searchsquare.links[0].space);
     }
 }
 
@@ -131,69 +113,112 @@ function search(query){
 
 window.onresize = function(){
     fixJitter(container);
+};
+
+
+var focusedSquare = -1;
+var focusedLink = 0;
+
+function globalKeyListener(e){
+    if(typeof configmenu !== "undefined" ||
+       searchsquare.searchinput == document.activeElement){
+        return;
+    }
+
+    var key = e.keyCode;
+    if(key == 9){
+        // tab
+        searchsquare.squareElement.style.height = "337px";
+        searchsquare.squareElement.style.borderWidth = data.style.border_width_hovered;
+        searchsquare.searchinput.focus();
+    }else if(key == 37){
+        // left arrow
+        if(focusedSquare > 0){
+            normalSquares[focusedSquare].unfocus(focusedLink);
+            normalSquares[focusedSquare].contract();
+            focusedSquare--;
+            focusedLink = 0;
+            normalSquares[focusedSquare].expand();
+            normalSquares[focusedSquare].focus(focusedLink);
+        }
+    }else if(key == 38 && focusedSquare >= 0){
+        // up arrow
+        if(focusedLink > 0){
+            normalSquares[focusedSquare].unfocus(focusedLink);
+            focusedLink--;
+            normalSquares[focusedSquare].focus(focusedLink);
+        }
+    }else if(key == 39){
+        // right arrow
+        if(focusedSquare < normalSquares.length - 1){
+            if(focusedSquare >= 0){
+                normalSquares[focusedSquare].unfocus(focusedLink);
+                normalSquares[focusedSquare].contract();
+            }
+            focusedSquare++;
+            focusedLink = 0;
+            normalSquares[focusedSquare].expand();
+            normalSquares[focusedSquare].focus(focusedLink);
+        }
+    }else if(key == 40 && focusedSquare >= 0){
+        // down arrow
+        if(focusedLink < normalSquares[focusedSquare].links.length - 1){
+            normalSquares[focusedSquare].unfocus(focusedLink);
+            focusedLink++;
+            normalSquares[focusedSquare].focus(focusedLink);
+        }
+    }else if(key == 13){
+        // enter
+        window.location = normalSquares[focusedSquare].links[focusedLink].url;
+    }
+
+    if([9,37,38,39,40].indexOf(key) > -1){
+        e.preventDefault();
+    }
 }
 
 
+
 function main(){
-    HelpText = "-h Shows this list<br>-g Google (default)<br>-w Wikipedia<br>\
-                -a ArchWiki<br>-d Danbooru<br>-y YouTube<br>-n niconico<br>\
-                -p pixiv";
     visibility = false;
     container = document.getElementById("container");
     fixJitter(container);
     popupDiv = document.getElementById("popup");
-    // search
-    var searchinput = document.getElementById("searchinput");
-    if(!!searchinput){
-        searchinput.addEventListener("keypress", function(a){
-            var key = a.keyCode;
-            if(key == 13){
-                var query = this.value;
-                search(query);
-            }
-        });
+
+    document.addEventListener("keypress", globalKeyListener);
+    if(data.bool.allowVersionCheck){
+        var ver = version();
+        if(ver){
+            var verMsg = "<a href='https://github.com/fuyuneko/startpage/" +
+                         "releases'>A new version is available: " + ver +
+                         "</a>";
+
+            popup(popupDiv, verMsg);
+        }
     }
 
-    // jump to search when tab is pressed
-    var search_sqr = document.getElementById("search_sqr");
-    document.addEventListener("keypress", function(a){
-        var key = a.keyCode;
-        if(key == 9){
-            search_sqr.style.height = "337px";
-            search_sqr.style.borderTop = cfg[9] + " solid " + cfg[8];
-            search_sqr.style.borderBottom = cfg[9] + " solid " + cfg[8];
-            document.getElementById("searchinput").focus();
-        }
-    
-        if([9].indexOf(key) > -1){
-            a.preventDefault();
-        }
-    });
+    // generate helptext for static options
+    var prefix = data.squares[data.squares.length - 1].prefix;
+    HelpText = "<table><tr><td>" + prefix +
+               "help</td><td>: Shows this help message</td></tr><tr><td>" +
+               prefix + "config</td><td>: Opens the config menu</td></tr></table>";
 
-    // adding event listeners to squares or expanding them onload
-    var sqr = document.querySelectorAll(".sqr");
-    if(!cfg_bool[1]){
-        for(var i = 0; i < sqr.length; ++i){
-            sqr[i].acount = sqr[i].getElementsByTagName("a").length;
-            sqr[i].addEventListener("mouseover", expand, false);
-            sqr[i].addEventListener("mouseout", contract, false);
+    // generate helptext for custom options
+    var searchsquareOptions = data.squares[data.squares.length - 1].options;
+    if(searchsquareOptions){
+        HelpText += "<br><table>";
+        for(var i=0; i < searchsquareOptions.length; i++){
+            // remove scheme, path and everything after path from URL
+            var url = searchsquareOptions[i].url.replace(/https?:\/\//, "")
+                                                .replace(/\/.*/, "");
+            HelpText += "<tr><td>" + prefix + searchsquareOptions[i].opt +
+                        "</td><td>: " + url + "</td></tr>";
         }
-    }else{
-        for(var i = 0; i < sqr.length; ++i){
-            var a = 0;
-            for(var x = 0; x < sqr.length; ++x){
-                if(a < sqr[x].getElementsByTagName("a").length){
-                    a = sqr[x].getElementsByTagName("a").length;
-                }
-            }
-            sqr[i].style.height = 225 + 25*a + "px";
-            if(cfg_bool[0]){
-                sqr[i].style.borderTop = cfg[9] + " solid " + cfg[8];
-                sqr[i].style.borderBottom = cfg[9] + " solid " + cfg[8];
-            }
-        }
+        HelpText += "</table>";
     }
 }
 
 
-configmenuInit(main);
+document.addEventListener("DOMContentLoaded", function(event){
+    configmenuInit(main);
+});
